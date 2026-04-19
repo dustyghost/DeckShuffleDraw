@@ -304,12 +304,22 @@ impl CardApp {
     }
 }
 
+const CONTROL_BUTTON_MIN_WIDTH: f32 = 136.0;
+const CONTROL_BUTTON_MIN_HEIGHT: f32 = 34.0;
+const TOOLBAR_ITEM_SPACING: f32 = 8.0;
+const TOOLBAR_INNER_MARGIN_X: f32 = 12.0;
+const TOOLBAR_INNER_MARGIN_Y: f32 = 10.0;
+const TOOLBAR_CORNER_RADIUS: u8 = 12;
+const TOOLBAR_STROKE_WIDTH: f32 = 1.0;
+
 fn control_button(
     ui: &mut egui::Ui,
     label: impl Into<String>,
     active: bool,
     tone: egui::Color32,
 ) -> egui::Response {
+    let min_size = egui::vec2(CONTROL_BUTTON_MIN_WIDTH, CONTROL_BUTTON_MIN_HEIGHT);
+
     let label = label.into();
     let fill = if active { tone } else { tone.gamma_multiply(0.45) };
     let stroke = if active {
@@ -320,10 +330,20 @@ fn control_button(
 
     ui.add(
         egui::Button::new(egui::RichText::new(label).strong().color(egui::Color32::WHITE))
-            .min_size(egui::vec2(136.0, 34.0))
+            .min_size(min_size)
             .fill(fill)
             .stroke(stroke),
     )
+}
+
+fn toolbar_preferred_width(button_count: usize) -> f32 {
+    let button_count = button_count as f32;
+    let gaps = (button_count - 1.0).max(0.0);
+
+    button_count * CONTROL_BUTTON_MIN_WIDTH
+        + gaps * TOOLBAR_ITEM_SPACING
+        + 2.0 * TOOLBAR_INNER_MARGIN_X
+        + 2.0 * TOOLBAR_STROKE_WIDTH
 }
 
 fn key_binding_row(ui: &mut egui::Ui, label: &str, binding: &mut Key) {
@@ -498,17 +518,19 @@ impl eframe::App for CardApp {
                 }
 
                 ui.add_space(12.0);
-                egui::Frame::new()
-                    .fill(self.settings.ui_style.toolbar_fill)
-                    .stroke(egui::Stroke::new(1.0, self.settings.ui_style.toolbar_stroke))
-                    .corner_radius(12)
-                    .inner_margin(egui::Margin::symmetric(12, 10))
-                    .show(ui, |ui| {
-                        let layout = egui::Layout::left_to_right(egui::Align::Center)
-                            .with_main_wrap(true)
-                            .with_main_align(egui::Align::Center);
-                        ui.allocate_ui_with_layout(ui.available_size_before_wrap(), layout, |ui| {
-                            ui.spacing_mut().item_spacing = egui::vec2(8.0, 8.0);
+                let toolbar_width = toolbar_preferred_width(7).min(ui.available_width());
+                ui.allocate_ui_with_layout(
+                    egui::vec2(toolbar_width, 0.0),
+                    egui::Layout::top_down(egui::Align::Center),
+                    |ui| {
+                        egui::Frame::new()
+                            .fill(self.settings.ui_style.toolbar_fill)
+                            .stroke(egui::Stroke::new(TOOLBAR_STROKE_WIDTH, self.settings.ui_style.toolbar_stroke))
+                            .corner_radius(TOOLBAR_CORNER_RADIUS)
+                            .inner_margin(egui::Margin::symmetric(TOOLBAR_INNER_MARGIN_X as i8, TOOLBAR_INNER_MARGIN_Y as i8))
+                            .show(ui, |ui| {
+                                ui.spacing_mut().item_spacing = egui::vec2(TOOLBAR_ITEM_SPACING, TOOLBAR_ITEM_SPACING);
+                                ui.horizontal_wrapped(|ui| {
 
                             if control_button(
                                 ui,
@@ -588,6 +610,8 @@ impl eframe::App for CardApp {
                             }
                         });
                     });
+                    },
+                );
 
                 ui.add_space(8.0);
                 ui.small(format!(
