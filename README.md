@@ -2,6 +2,8 @@
 
 Small Rust desktop app for drawing a random card from a configured deck.
 
+![App screenshot](AppShot.png)
+
 ## Controls
 
 - `Space`: show a random card from the current deck
