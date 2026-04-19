@@ -1,0 +1,11 @@
+[package]
+name = "deck_shuffle_draw"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+eframe = "0.33"
+image = { version = "0.25", default-features = false, features = ["jpeg", "png"] }
+rand = "0.9"
+serde = { version = "1", features = ["derive"] }
+toml = "0.9"

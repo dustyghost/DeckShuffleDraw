@@ -1,0 +1,32 @@
+card_max_width = 420.0
+card_max_height = 640.0
+help_max_width = 900.0
+help_max_height = 1100.0
+card_corner_radius = 16.0
+preload_cards = true
+active_deck = 0
+
+[keybindings]
+next_card = "Space"
+toggle_help = "H"
+toggle_deck_menu = "M"
+next_deck = "Tab"
+toggle_debug = "D"
+open_settings = "S"
+quit = "Q"
+
+[ui_style]
+toolbar_fill = "#22252c"
+toolbar_stroke = "#404652"
+next_card = "#2c7a5e"
+help = "#3768b4"
+deck_menu = "#6c4ea8"
+next_deck = "#b27524"
+debug = "#945034"
+settings = "#5c6076"
+quit = "#963040"
+
+[[decks]]
+name = "Demo Deck"
+image_dir = "demo-assets/decks/demo-deck"
+help_image = "demo-assets/help/demo-deck-help.png"
