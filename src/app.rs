@@ -25,6 +25,7 @@ pub struct CardApp {
     background_receiver: Option<Receiver<Result<DecodedCard, String>>>,
     draft_keybindings: Option<KeyBindings>,
     show_debug: bool,
+    hide_ui_chrome: bool,
     show_deck_menu: bool,
     show_help: bool,
     show_settings: bool,
@@ -46,6 +47,7 @@ impl CardApp {
             background_receiver: None,
             draft_keybindings: None,
             show_debug: false,
+            hide_ui_chrome: false,
             show_deck_menu: false,
             show_help: false,
             show_settings: false,
@@ -227,21 +229,6 @@ impl CardApp {
         }
     }
 
-    fn current_deck_loaded_count(&self) -> usize {
-        self.image_paths
-            .iter()
-            .filter(|path| self.loaded_cards.contains_key(path.as_path()))
-            .count()
-    }
-
-    fn current_help_loaded(&self) -> bool {
-        self.settings
-            .current_deck()
-            .help_image
-            .as_ref()
-            .is_some_and(|path| self.loaded_cards.contains_key(path.as_path()))
-    }
-
     fn select_deck(&mut self, index: usize, ctx: &egui::Context) {
         if index >= self.settings.decks.len() || index == self.settings.active_deck {
             self.show_deck_menu = false;
@@ -302,103 +289,33 @@ impl CardApp {
         self.show_settings = false;
         self.draft_keybindings = None;
     }
-}
 
-const CONTROL_BUTTON_MIN_WIDTH: f32 = 136.0;
-const CONTROL_BUTTON_MIN_HEIGHT: f32 = 34.0;
-const TOOLBAR_ITEM_SPACING: f32 = 8.0;
-const TOOLBAR_INNER_MARGIN_X: f32 = 12.0;
-const TOOLBAR_INNER_MARGIN_Y: f32 = 10.0;
-const TOOLBAR_CORNER_RADIUS: u8 = 12;
-const TOOLBAR_STROKE_WIDTH: f32 = 1.0;
-
-fn mouse_click_sense() -> egui::Sense {
-    egui::Sense::CLICK
-}
-
-fn control_button(
-    ui: &mut egui::Ui,
-    label: impl Into<String>,
-    active: bool,
-    tone: egui::Color32,
-) -> egui::Response {
-    let min_size = egui::vec2(CONTROL_BUTTON_MIN_WIDTH, CONTROL_BUTTON_MIN_HEIGHT);
-
-    let label = label.into();
-    let fill = if active { tone } else { tone.gamma_multiply(0.45) };
-    let stroke = if active {
-        egui::Stroke::new(1.5, tone.gamma_multiply(0.75))
-    } else {
-        egui::Stroke::new(1.0, tone.gamma_multiply(0.65))
-    };
-
-    ui.add(
-        egui::Button::new(egui::RichText::new(label).strong().color(egui::Color32::WHITE))
-            .sense(mouse_click_sense())
-            .min_size(min_size)
-            .fill(fill)
-            .stroke(stroke),
-    )
-}
-
-fn toolbar_preferred_width(button_count: usize) -> f32 {
-    let button_count = button_count as f32;
-    let gaps = (button_count - 1.0).max(0.0);
-
-    button_count * CONTROL_BUTTON_MIN_WIDTH
-        + gaps * TOOLBAR_ITEM_SPACING
-        + 2.0 * TOOLBAR_INNER_MARGIN_X
-        + 2.0 * TOOLBAR_STROKE_WIDTH
-}
-
-fn key_binding_row(ui: &mut egui::Ui, label: &str, binding: &mut Key) {
-    ui.horizontal(|ui| {
-        ui.label(label);
-        egui::ComboBox::from_id_salt(label)
-            .selected_text(binding.label())
-            .show_ui(ui, |ui| {
-                for key in bindable_keys() {
-                    ui.selectable_value(binding, *key, key.label());
-                }
-            });
-    });
-}
-
-fn initialize_app() -> (AppSettings, PathBuf, Vec<PathBuf>, Option<String>) {
-    let (settings, settings_path) = match load_settings() {
-        Ok(result) => result,
-        Err(error) => {
-            return (
-                default_app_settings(),
-                PathBuf::from(SETTINGS_FILE_NAME),
-                Vec::new(),
-                Some(error),
-            );
-        }
-    };
-
-    let image_paths = find_image_paths(&settings.current_deck().image_dir);
-    if image_paths.is_empty() {
-        let error_message = format!(
-            "No images found in `{}`.",
-            settings.current_deck().image_dir.display()
-        );
-        return (settings, settings_path, Vec::new(), Some(error_message));
+    fn current_deck_loaded_count(&self) -> usize {
+        self.image_paths
+            .iter()
+            .filter(|path| self.loaded_cards.contains_key(path.as_path()))
+            .count()
     }
 
-    (settings, settings_path, image_paths, None)
-}
+    fn current_help_loaded(&self) -> bool {
+        self.settings
+            .current_deck()
+            .help_image
+            .as_ref()
+            .is_some_and(|path| self.loaded_cards.contains_key(path.as_path()))
+    }
 
-impl eframe::App for CardApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        let keybindings = self.settings.keybindings.clone();
+    fn handle_input(&mut self, ctx: &egui::Context, keybindings: &KeyBindings) -> bool {
         if ctx.input(|input| input.key_pressed(keybindings.quit)) {
             ctx.send_viewport_cmd(egui::ViewportCommand::Close);
-            return;
+            return true;
         }
 
         if ctx.input(|input| input.key_pressed(keybindings.toggle_debug)) {
             self.show_debug = !self.show_debug;
+        }
+        if ctx.input(|input| input.key_pressed(keybindings.toggle_full_screen)) {
+            self.hide_ui_chrome = !self.hide_ui_chrome;
         }
         if ctx.input(|input| input.key_pressed(keybindings.toggle_deck_menu)) {
             self.show_deck_menu = !self.show_deck_menu;
@@ -418,125 +335,207 @@ impl eframe::App for CardApp {
                 self.open_settings();
             }
         }
-
-        self.drain_background_loader(ctx);
-
         if ctx.input(|input| input.key_pressed(keybindings.next_card)) {
             self.advance_to_next_card();
         }
 
+        false
+    }
+
+    fn sync_textures(&mut self, ctx: &egui::Context) {
+        self.drain_background_loader(ctx);
         self.ensure_current_texture_loaded(ctx);
         if self.show_help {
             self.ensure_help_texture_loaded(ctx);
         }
+    }
 
-        egui::CentralPanel::default().show(ctx, |ui| {
-            ui.vertical_centered(|ui| {
-                ui.heading("Deck Shuffle Draw");
-                ui.label(format!("Deck: {}", self.settings.current_deck().name));
-                ui.label(format!(
-                    "Press {} for next card, {} for help, {} for deck menu, {} for settings, {} for next deck, {} to quit.",
-                    keybindings.next_card.label(),
-                    keybindings.toggle_help.label(),
-                    keybindings.toggle_deck_menu.label(),
-                    keybindings.open_settings.label(),
-                    keybindings.next_deck.label(),
-                    keybindings.quit.label(),
-                ));
+    fn display_texture(&self) -> Option<TextureHandle> {
+        if self.show_help {
+            self.current_help_texture.clone()
+        } else {
+            self.current_texture.clone()
+        }
+    }
 
-                if self.show_debug {
-                    let deck_loaded_count = self.current_deck_loaded_count();
-                    ui.label("Debug: on");
-                    ui.label(format!("Images: {}", self.settings.current_deck().image_dir.display()));
-                    ui.label(format!(
-                        "Card size: {:.0} x {:.0}",
-                        self.settings.card_max_width, self.settings.card_max_height
-                    ));
-                    ui.label(format!(
-                        "Help size: {:.0} x {:.0}",
-                        self.settings.help_max_width, self.settings.help_max_height
-                    ));
-                    ui.label(format!("Corner radius: {:.0}", self.settings.card_corner_radius));
-                    ui.label(format!(
-                        "Preload cards: {}",
-                        if self.settings.preload_cards { "on" } else { "off" }
-                    ));
-                    ui.label(format!(
-                        "{}: {} of {}",
-                        if self.settings.preload_cards {
-                            "Cached cards"
-                        } else {
-                            "Cards loaded on demand"
-                        },
-                        deck_loaded_count,
-                        self.image_paths.len()
-                    ));
-                    ui.label(format!(
-                        "Help image: {}",
-                        self.settings
-                            .current_deck()
-                            .help_image
-                            .as_ref()
-                            .map(|path| path.display().to_string())
-                            .unwrap_or_else(|| "none".to_string())
-                    ));
-                    ui.label(format!(
-                        "Help loaded: {}",
-                        if self.current_help_loaded() { "yes" } else { "no" }
-                    ));
+    fn render_main_panel(&mut self, ctx: &egui::Context, ui: &mut egui::Ui, keybindings: &KeyBindings) {
+        let display_texture = self.display_texture();
 
-                    if let Some(path) = &self.current_path {
-                        ui.label(path.file_name().and_then(|name| name.to_str()).unwrap_or(""));
-                    }
-                }
+        if self.hide_ui_chrome {
+            self.render_card_only_ui(ui, &display_texture);
+        } else {
+            self.render_full_ui(ctx, ui, keybindings, &display_texture);
+        }
+    }
 
-                if let Some(error_message) = &self.error_message {
-                    ui.add_space(12.0);
-                    ui.colored_label(egui::Color32::RED, error_message);
-                    ui.label(format!("Update {} to fix the image path or card size.", self.settings_path.display()));
-                }
+    fn render_card_only_ui(&mut self, ui: &mut egui::Ui, display_texture: &Option<TextureHandle>) {
+        ui.with_layout(
+            egui::Layout::centered_and_justified(egui::Direction::TopDown),
+            |ui| self.render_card_content(ui, display_texture, false),
+        );
+    }
 
-                let display_texture = if self.show_help {
-                    self.current_help_texture.as_ref()
-                } else {
-                    self.current_texture.as_ref()
-                };
+    fn render_full_ui(
+        &mut self,
+        ctx: &egui::Context,
+        ui: &mut egui::Ui,
+        keybindings: &KeyBindings,
+        display_texture: &Option<TextureHandle>,
+    ) {
+        ui.vertical_centered(|ui| {
+            self.render_header(ui, keybindings);
 
-                if let Some(texture) = display_texture {
-                    ui.add_space(12.0);
-                    let max_size = if self.show_help {
-                        self.help_max_size()
-                    } else {
-                        self.card_max_size()
-                    };
-                    let available = ui.available_size().min(max_size);
-                    let fitted = fit_size(texture.size_vec2(), available);
-                    let response = ui.add(
-                        egui::Image::new(texture)
-                            .fit_to_exact_size(fitted)
-                            .sense(mouse_click_sense())
-                            .corner_radius(self.settings.card_corner_radius.round() as u8),
-                    );
-                    if !self.show_help && response.clicked() {
-                        self.advance_to_next_card();
-                    }
-                }
+            if self.show_debug {
+                self.render_debug_info(ui);
+            }
 
+            if let Some(error_message) = &self.error_message {
                 ui.add_space(12.0);
-                let toolbar_width = toolbar_preferred_width(7).min(ui.available_width());
-                ui.allocate_ui_with_layout(
-                    egui::vec2(toolbar_width, 0.0),
-                    egui::Layout::top_down(egui::Align::Center),
-                    |ui| {
-                        egui::Frame::new()
-                            .fill(self.settings.ui_style.toolbar_fill)
-                            .stroke(egui::Stroke::new(TOOLBAR_STROKE_WIDTH, self.settings.ui_style.toolbar_stroke))
-                            .corner_radius(TOOLBAR_CORNER_RADIUS)
-                            .inner_margin(egui::Margin::symmetric(TOOLBAR_INNER_MARGIN_X as i8, TOOLBAR_INNER_MARGIN_Y as i8))
-                            .show(ui, |ui| {
-                                ui.spacing_mut().item_spacing = egui::vec2(TOOLBAR_ITEM_SPACING, TOOLBAR_ITEM_SPACING);
-                                ui.horizontal_wrapped(|ui| {
+                ui.colored_label(egui::Color32::RED, error_message);
+                ui.label(format!(
+                    "Update {} to fix the image path or card size.",
+                    self.settings_path.display()
+                ));
+            }
 
+            self.render_card_content(ui, display_texture, true);
+            self.render_toolbar(ctx, ui, keybindings);
+
+            ui.add_space(8.0);
+            ui.small(format!(
+                "Press {} to hide UI. Press {} to toggle debug details.",
+                keybindings.toggle_full_screen.label(),
+                keybindings.toggle_debug.label()
+            ));
+        });
+    }
+
+    fn render_header(&self, ui: &mut egui::Ui, keybindings: &KeyBindings) {
+        ui.heading("Deck Shuffle Draw");
+        ui.label(format!("Deck: {}", self.settings.current_deck().name));
+        ui.label(format!(
+            "Press {} for next card, {} for help, {} for deck menu, {} for full screen, {} for settings, {} for next deck, {} to quit.",
+            keybindings.next_card.label(),
+            keybindings.toggle_help.label(),
+            keybindings.toggle_deck_menu.label(),
+            keybindings.toggle_full_screen.label(),
+            keybindings.open_settings.label(),
+            keybindings.next_deck.label(),
+            keybindings.quit.label(),
+        ));
+    }
+
+    fn render_debug_info(&self, ui: &mut egui::Ui) {
+        let deck_loaded_count = self.current_deck_loaded_count();
+        ui.label("Debug: on");
+        ui.label(format!(
+            "Images: {}",
+            self.settings.current_deck().image_dir.display()
+        ));
+        ui.label(format!(
+            "Card size: {:.0} x {:.0}",
+            self.settings.card_max_width, self.settings.card_max_height
+        ));
+        ui.label(format!(
+            "Help size: {:.0} x {:.0}",
+            self.settings.help_max_width, self.settings.help_max_height
+        ));
+        ui.label(format!(
+            "Corner radius: {:.0}",
+            self.settings.card_corner_radius
+        ));
+        ui.label(format!(
+            "Preload cards: {}",
+            if self.settings.preload_cards { "on" } else { "off" }
+        ));
+        ui.label(format!(
+            "{}: {} of {}",
+            if self.settings.preload_cards {
+                "Cached cards"
+            } else {
+                "Cards loaded on demand"
+            },
+            deck_loaded_count,
+            self.image_paths.len()
+        ));
+        ui.label(format!(
+            "Help image: {}",
+            self.settings
+                .current_deck()
+                .help_image
+                .as_ref()
+                .map(|path| path.display().to_string())
+                .unwrap_or_else(|| "none".to_string())
+        ));
+        ui.label(format!(
+            "Help loaded: {}",
+            if self.current_help_loaded() {
+                "yes"
+            } else {
+                "no"
+            }
+        ));
+
+        if let Some(path) = &self.current_path {
+            ui.label(path.file_name().and_then(|name| name.to_str()).unwrap_or(""));
+        }
+    }
+
+    fn render_card_content(
+        &mut self,
+        ui: &mut egui::Ui,
+        display_texture: &Option<TextureHandle>,
+        add_top_spacing: bool,
+    ) {
+        if let Some(texture) = display_texture {
+            if add_top_spacing {
+                ui.add_space(12.0);
+            }
+            let max_size = if self.show_help {
+                self.help_max_size()
+            } else {
+                self.card_max_size()
+            };
+            let available = ui.available_size().min(max_size);
+            let fitted = fit_size(texture.size_vec2(), available);
+            let response = ui.add(
+                egui::Image::new(texture)
+                    .fit_to_exact_size(fitted)
+                    .sense(mouse_click_sense())
+                    .corner_radius(self.settings.card_corner_radius.round() as u8),
+            );
+            if !self.show_help && response.clicked() {
+                self.advance_to_next_card();
+            }
+        } else if !add_top_spacing {
+            if let Some(error_message) = &self.error_message {
+                ui.colored_label(egui::Color32::RED, error_message);
+            }
+        }
+    }
+
+    fn render_toolbar(&mut self, ctx: &egui::Context, ui: &mut egui::Ui, keybindings: &KeyBindings) {
+        ui.add_space(12.0);
+        let toolbar_width = toolbar_preferred_width(7).min(ui.available_width());
+        ui.allocate_ui_with_layout(
+            egui::vec2(toolbar_width, 0.0),
+            egui::Layout::top_down(egui::Align::Center),
+            |ui| {
+                egui::Frame::new()
+                    .fill(self.settings.ui_style.toolbar_fill)
+                    .stroke(egui::Stroke::new(
+                        TOOLBAR_STROKE_WIDTH,
+                        self.settings.ui_style.toolbar_stroke,
+                    ))
+                    .corner_radius(TOOLBAR_CORNER_RADIUS)
+                    .inner_margin(egui::Margin::symmetric(
+                        TOOLBAR_INNER_MARGIN_X as i8,
+                        TOOLBAR_INNER_MARGIN_Y as i8,
+                    ))
+                    .show(ui, |ui| {
+                        ui.spacing_mut().item_spacing =
+                            egui::vec2(TOOLBAR_ITEM_SPACING, TOOLBAR_ITEM_SPACING);
+                        ui.horizontal_wrapped(|ui| {
                             if control_button(
                                 ui,
                                 format!("Next Card ({})", keybindings.next_card.label()),
@@ -615,126 +614,357 @@ impl eframe::App for CardApp {
                             }
                         });
                     });
-                    },
-                );
+            },
+        );
+    }
+
+    fn render_deck_menu(&mut self, ctx: &egui::Context) {
+        if !self.show_deck_menu {
+            return;
+        }
+
+        let deck_names = self
+            .settings
+            .decks
+            .iter()
+            .map(|deck| deck.name.clone())
+            .collect::<Vec<_>>();
+        let active_deck = self.settings.active_deck;
+        let mut selected_deck = None;
+        let mut close_menu = false;
+
+        egui::Window::new("Choose Deck")
+            .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
+            .collapsible(false)
+            .resizable(false)
+            .show(ctx, |ui| {
+                ui.label("Select a deck:");
+                ui.add_space(8.0);
+
+                for (index, name) in deck_names.iter().enumerate() {
+                    let label = if index == active_deck {
+                        format!("{name} (Current)")
+                    } else {
+                        name.clone()
+                    };
+
+                    if ui.button(label).clicked() {
+                        selected_deck = Some(index);
+                    }
+                }
 
                 ui.add_space(8.0);
-                ui.small(format!(
-                    "Press {} to toggle debug details.",
-                    keybindings.toggle_debug.label()
-                ));
+                if ui.button("Close").clicked() {
+                    close_menu = true;
+                }
             });
-        });
 
-        if self.show_deck_menu {
-            let deck_names = self
-                .settings
-                .decks
-                .iter()
-                .map(|deck| deck.name.clone())
-                .collect::<Vec<_>>();
-            let active_deck = self.settings.active_deck;
-            let mut selected_deck = None;
-            let mut close_menu = false;
+        if let Some(index) = selected_deck {
+            self.select_deck(index, ctx);
+        } else if close_menu {
+            self.show_deck_menu = false;
+        }
+    }
 
-            egui::Window::new("Choose Deck")
-                .anchor(egui::Align2::CENTER_CENTER, [0.0, 0.0])
-                .collapsible(false)
-                .resizable(false)
-                .show(ctx, |ui| {
-                    ui.label("Select a deck:");
-                    ui.add_space(8.0);
-
-                    for (index, name) in deck_names.iter().enumerate() {
-                        let label = if index == active_deck {
-                            format!("{name} (Current)")
-                        } else {
-                            name.clone()
-                        };
-
-                        if ui.button(label).clicked() {
-                            selected_deck = Some(index);
-                        }
-                    }
-
-                    ui.add_space(8.0);
-                    if ui.button("Close").clicked() {
-                        close_menu = true;
-                    }
-                });
-
-            if let Some(index) = selected_deck {
-                self.select_deck(index, ctx);
-            } else if close_menu {
-                self.show_deck_menu = false;
-            }
+    fn render_settings_window(&mut self, ctx: &egui::Context) {
+        if !self.show_settings {
+            return;
         }
 
-        if self.show_settings {
-            let mut close_settings = false;
+        let mut close_settings = false;
 
-            egui::Window::new("Settings")
-                .anchor(egui::Align2::RIGHT_TOP, [-16.0, 16.0])
-                .collapsible(false)
-                .resizable(false)
-                .show(ctx, |ui| {
-                    ui.heading("Key Bindings");
-                    ui.add_space(8.0);
+        egui::Window::new("Settings")
+            .anchor(egui::Align2::RIGHT_TOP, [-16.0, 16.0])
+            .collapsible(false)
+            .resizable(false)
+            .show(ctx, |ui| {
+                ui.heading("Key Bindings");
+                ui.add_space(8.0);
 
-                    let draft = self
-                        .draft_keybindings
-                        .get_or_insert_with(|| self.settings.keybindings.clone());
-                    key_binding_row(ui, "Next Card", &mut draft.next_card);
-                    key_binding_row(ui, "Help", &mut draft.toggle_help);
-                    key_binding_row(ui, "Deck Menu", &mut draft.toggle_deck_menu);
-                    key_binding_row(ui, "Next Deck", &mut draft.next_deck);
-                    key_binding_row(ui, "Debug", &mut draft.toggle_debug);
-                    key_binding_row(ui, "Settings", &mut draft.open_settings);
-                    key_binding_row(ui, "Quit", &mut draft.quit);
+                let draft = self
+                    .draft_keybindings
+                    .get_or_insert_with(|| self.settings.keybindings.clone());
+                let snapshot = draft.clone();
+                key_binding_row(
+                    ui,
+                    "Next Card",
+                    &mut draft.next_card,
+                    &[
+                        snapshot.toggle_help,
+                        snapshot.toggle_deck_menu,
+                        snapshot.toggle_full_screen,
+                        snapshot.next_deck,
+                        snapshot.toggle_debug,
+                        snapshot.open_settings,
+                        snapshot.quit,
+                    ],
+                );
+                key_binding_row(
+                    ui,
+                    "Help",
+                    &mut draft.toggle_help,
+                    &[
+                        snapshot.next_card,
+                        snapshot.toggle_deck_menu,
+                        snapshot.toggle_full_screen,
+                        snapshot.next_deck,
+                        snapshot.toggle_debug,
+                        snapshot.open_settings,
+                        snapshot.quit,
+                    ],
+                );
+                key_binding_row(
+                    ui,
+                    "Deck Menu",
+                    &mut draft.toggle_deck_menu,
+                    &[
+                        snapshot.next_card,
+                        snapshot.toggle_help,
+                        snapshot.toggle_full_screen,
+                        snapshot.next_deck,
+                        snapshot.toggle_debug,
+                        snapshot.open_settings,
+                        snapshot.quit,
+                    ],
+                );
+                key_binding_row(
+                    ui,
+                    "Full Screen",
+                    &mut draft.toggle_full_screen,
+                    &[
+                        snapshot.next_card,
+                        snapshot.toggle_help,
+                        snapshot.toggle_deck_menu,
+                        snapshot.next_deck,
+                        snapshot.toggle_debug,
+                        snapshot.open_settings,
+                        snapshot.quit,
+                    ],
+                );
+                key_binding_row(
+                    ui,
+                    "Next Deck",
+                    &mut draft.next_deck,
+                    &[
+                        snapshot.next_card,
+                        snapshot.toggle_help,
+                        snapshot.toggle_deck_menu,
+                        snapshot.toggle_full_screen,
+                        snapshot.toggle_debug,
+                        snapshot.open_settings,
+                        snapshot.quit,
+                    ],
+                );
+                key_binding_row(
+                    ui,
+                    "Debug",
+                    &mut draft.toggle_debug,
+                    &[
+                        snapshot.next_card,
+                        snapshot.toggle_help,
+                        snapshot.toggle_deck_menu,
+                        snapshot.toggle_full_screen,
+                        snapshot.next_deck,
+                        snapshot.open_settings,
+                        snapshot.quit,
+                    ],
+                );
+                key_binding_row(
+                    ui,
+                    "Settings",
+                    &mut draft.open_settings,
+                    &[
+                        snapshot.next_card,
+                        snapshot.toggle_help,
+                        snapshot.toggle_deck_menu,
+                        snapshot.toggle_full_screen,
+                        snapshot.next_deck,
+                        snapshot.toggle_debug,
+                        snapshot.quit,
+                    ],
+                );
+                key_binding_row(
+                    ui,
+                    "Quit",
+                    &mut draft.quit,
+                    &[
+                        snapshot.next_card,
+                        snapshot.toggle_help,
+                        snapshot.toggle_deck_menu,
+                        snapshot.toggle_full_screen,
+                        snapshot.next_deck,
+                        snapshot.toggle_debug,
+                        snapshot.open_settings,
+                    ],
+                );
 
-                    ui.add_space(12.0);
-                    ui.horizontal(|ui| {
-                        if ui.button("Save").clicked()
-                            && let Some(draft) = self.draft_keybindings.clone()
-                        {
-                            match draft.validate_unique() {
-                                Ok(()) => {
-                                    self.settings.keybindings = draft;
-                                    match self.save_settings() {
-                                        Ok(()) => {
-                                            self.settings_message = Some(format!(
-                                                "Saved to {}",
-                                                self.settings_path.display()
-                                            ));
-                                            self.error_message = None;
-                                        }
-                                        Err(error) => {
-                                            self.error_message = Some(error);
-                                            self.settings_message = None;
-                                        }
+                ui.add_space(12.0);
+                ui.horizontal(|ui| {
+                    if ui.button("Save").clicked()
+                        && let Some(draft) = self.draft_keybindings.clone()
+                    {
+                        match draft.validate_unique() {
+                            Ok(()) => {
+                                self.settings.keybindings = draft;
+                                match self.save_settings() {
+                                    Ok(()) => {
+                                        self.settings_message =
+                                            Some(format!("Saved to {}", self.settings_path.display()));
+                                        self.error_message = None;
+                                    }
+                                    Err(error) => {
+                                        self.error_message = Some(error);
+                                        self.settings_message = None;
                                     }
                                 }
-                                Err(error) => {
-                                    self.error_message = Some(error);
-                                    self.settings_message = None;
-                                }
+                            }
+                            Err(error) => {
+                                self.error_message = Some(error);
+                                self.settings_message = None;
                             }
                         }
+                    }
 
-                        if ui.button("Close").clicked() {
-                            close_settings = true;
-                        }
-                    });
-
-                    if let Some(message) = &self.settings_message {
-                        ui.add_space(8.0);
-                        ui.label(message);
+                    if ui.button("Close").clicked() {
+                        close_settings = true;
                     }
                 });
 
-            if close_settings {
-                self.close_settings();
-            }
+                if let Some(message) = &self.settings_message {
+                    ui.add_space(8.0);
+                    ui.label(message);
+                }
+            });
+
+        if close_settings {
+            self.close_settings();
         }
+    }
+}
+
+const CONTROL_BUTTON_MIN_WIDTH: f32 = 136.0;
+const CONTROL_BUTTON_MIN_HEIGHT: f32 = 34.0;
+const TOOLBAR_ITEM_SPACING: f32 = 8.0;
+const TOOLBAR_INNER_MARGIN_X: f32 = 12.0;
+const TOOLBAR_INNER_MARGIN_Y: f32 = 10.0;
+const TOOLBAR_CORNER_RADIUS: u8 = 12;
+const TOOLBAR_STROKE_WIDTH: f32 = 1.0;
+
+fn mouse_click_sense() -> egui::Sense {
+    egui::Sense::CLICK
+}
+
+fn control_button(
+    ui: &mut egui::Ui,
+    label: impl Into<String>,
+    active: bool,
+    tone: egui::Color32,
+) -> egui::Response {
+    let min_size = egui::vec2(CONTROL_BUTTON_MIN_WIDTH, CONTROL_BUTTON_MIN_HEIGHT);
+
+    let label = label.into();
+    let fill = if active { tone } else { tone.gamma_multiply(0.45) };
+    let stroke = if active {
+        egui::Stroke::new(1.5, tone.gamma_multiply(0.75))
+    } else {
+        egui::Stroke::new(1.0, tone.gamma_multiply(0.65))
+    };
+
+    ui.add(
+        egui::Button::new(egui::RichText::new(label).strong().color(egui::Color32::WHITE))
+            .sense(mouse_click_sense())
+            .min_size(min_size)
+            .fill(fill)
+            .stroke(stroke),
+    )
+}
+
+fn toolbar_preferred_width(button_count: usize) -> f32 {
+    let button_count = button_count as f32;
+    let gaps = (button_count - 1.0).max(0.0);
+
+    button_count * CONTROL_BUTTON_MIN_WIDTH
+        + gaps * TOOLBAR_ITEM_SPACING
+        + 2.0 * TOOLBAR_INNER_MARGIN_X
+        + 2.0 * TOOLBAR_STROKE_WIDTH
+}
+
+fn available_bindable_keys(unavailable_keys: &[Key]) -> Vec<Key> {
+    bindable_keys()
+        .iter()
+        .copied()
+        .filter(|key| !unavailable_keys.contains(key))
+        .collect()
+}
+
+fn key_binding_row(ui: &mut egui::Ui, label: &str, binding: &mut Key, unavailable_keys: &[Key]) {
+    ui.horizontal(|ui| {
+        ui.label(label);
+        egui::ComboBox::from_id_salt(label)
+            .selected_text(binding.label())
+            .show_ui(ui, |ui| {
+                for key in available_bindable_keys(unavailable_keys) {
+                    ui.selectable_value(binding, key, key.label());
+                }
+            });
+    });
+}
+
+fn initialize_app() -> (AppSettings, PathBuf, Vec<PathBuf>, Option<String>) {
+    let (settings, settings_path) = match load_settings() {
+        Ok(result) => result,
+        Err(error) => {
+            return (
+                default_app_settings(),
+                PathBuf::from(SETTINGS_FILE_NAME),
+                Vec::new(),
+                Some(error),
+            );
+        }
+    };
+
+    let image_paths = find_image_paths(&settings.current_deck().image_dir);
+    if image_paths.is_empty() {
+        let error_message = format!(
+            "No images found in `{}`.",
+            settings.current_deck().image_dir.display()
+        );
+        return (settings, settings_path, Vec::new(), Some(error_message));
+    }
+
+    (settings, settings_path, image_paths, None)
+}
+
+impl eframe::App for CardApp {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        let keybindings = self.settings.keybindings.clone();
+        if self.handle_input(ctx, &keybindings) {
+            return;
+        }
+
+        self.sync_textures(ctx);
+
+        egui::CentralPanel::default().show(ctx, |ui| {
+            self.render_main_panel(ctx, ui, &keybindings);
+        });
+
+        self.render_deck_menu(ctx);
+        self.render_settings_window(ctx);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn available_bindable_keys_excludes_unavailable_keys() {
+        let available = available_bindable_keys(&[Key::F, Key::Q, Key::Space]);
+
+        assert!(!available.contains(&Key::F));
+        assert!(!available.contains(&Key::Q));
+        assert!(!available.contains(&Key::Space));
+        assert!(available.contains(&Key::H));
+        assert!(available.contains(&Key::Tab));
     }
 }
