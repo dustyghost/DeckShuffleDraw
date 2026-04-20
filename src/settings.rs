@@ -56,6 +56,7 @@ pub struct KeyBindings {
     pub next_card: Key,
     pub toggle_help: Key,
     pub toggle_deck_menu: Key,
+    pub toggle_full_screen: Key,
     pub next_deck: Key,
     pub toggle_debug: Key,
     pub open_settings: Key,
@@ -67,6 +68,8 @@ pub struct KeyBindingsFile {
     next_card: String,
     toggle_help: String,
     toggle_deck_menu: String,
+    #[serde(default = "default_toggle_full_screen_key")]
+    toggle_full_screen: String,
     next_deck: String,
     toggle_debug: String,
     open_settings: String,
@@ -175,12 +178,17 @@ impl Default for KeyBindingsFile {
             next_card: "Space".to_string(),
             toggle_help: "H".to_string(),
             toggle_deck_menu: "M".to_string(),
+            toggle_full_screen: "F".to_string(),
             next_deck: "Tab".to_string(),
             toggle_debug: "D".to_string(),
             open_settings: "S".to_string(),
             quit: "Q".to_string(),
         }
     }
+}
+
+fn default_toggle_full_screen_key() -> String {
+    "F".to_string()
 }
 
 impl Default for UiStyleFile {
@@ -205,6 +213,7 @@ impl KeyBindings {
             next_card: parse_key(&raw.next_card)?,
             toggle_help: parse_key(&raw.toggle_help)?,
             toggle_deck_menu: parse_key(&raw.toggle_deck_menu)?,
+            toggle_full_screen: parse_key(&raw.toggle_full_screen)?,
             next_deck: parse_key(&raw.next_deck)?,
             toggle_debug: parse_key(&raw.toggle_debug)?,
             open_settings: parse_key(&raw.open_settings)?,
@@ -217,6 +226,7 @@ impl KeyBindings {
             next_card: self.next_card.label().to_string(),
             toggle_help: self.toggle_help.label().to_string(),
             toggle_deck_menu: self.toggle_deck_menu.label().to_string(),
+            toggle_full_screen: self.toggle_full_screen.label().to_string(),
             next_deck: self.next_deck.label().to_string(),
             toggle_debug: self.toggle_debug.label().to_string(),
             open_settings: self.open_settings.label().to_string(),
@@ -229,6 +239,7 @@ impl KeyBindings {
             ("next_card", self.next_card),
             ("toggle_help", self.toggle_help),
             ("toggle_deck_menu", self.toggle_deck_menu),
+            ("toggle_full_screen", self.toggle_full_screen),
             ("next_deck", self.next_deck),
             ("toggle_debug", self.toggle_debug),
             ("open_settings", self.open_settings),
@@ -539,6 +550,7 @@ mod tests {
             next_card: Key::Space,
             toggle_help: Key::H,
             toggle_deck_menu: Key::M,
+            toggle_full_screen: Key::F,
             next_deck: Key::Tab,
             toggle_debug: Key::D,
             open_settings: Key::Space,
@@ -629,6 +641,26 @@ mod tests {
         .expect_err("unsupported key should fail");
 
         assert!(error.contains("Unsupported key binding"));
+    }
+
+    #[test]
+    fn missing_toggle_full_screen_defaults_to_f() {
+        let raw: KeyBindingsFile = toml::from_str(
+            r#"
+next_card = "Space"
+toggle_help = "H"
+toggle_deck_menu = "M"
+next_deck = "Tab"
+toggle_debug = "D"
+open_settings = "S"
+quit = "Q"
+"#,
+        )
+        .expect("legacy keybindings should deserialize");
+
+        let bindings = KeyBindings::from_file(raw).expect("legacy keybindings should parse");
+
+        assert_eq!(bindings.toggle_full_screen, Key::F);
     }
 
     #[test]
