@@ -312,6 +312,10 @@ const TOOLBAR_INNER_MARGIN_Y: f32 = 10.0;
 const TOOLBAR_CORNER_RADIUS: u8 = 12;
 const TOOLBAR_STROKE_WIDTH: f32 = 1.0;
 
+fn mouse_click_sense() -> egui::Sense {
+    egui::Sense::CLICK
+}
+
 fn control_button(
     ui: &mut egui::Ui,
     label: impl Into<String>,
@@ -330,6 +334,7 @@ fn control_button(
 
     ui.add(
         egui::Button::new(egui::RichText::new(label).strong().color(egui::Color32::WHITE))
+            .sense(mouse_click_sense())
             .min_size(min_size)
             .fill(fill)
             .stroke(stroke),
@@ -509,7 +514,7 @@ impl eframe::App for CardApp {
                     let response = ui.add(
                         egui::Image::new(texture)
                             .fit_to_exact_size(fitted)
-                            .sense(egui::Sense::click())
+                            .sense(mouse_click_sense())
                             .corner_radius(self.settings.card_corner_radius.round() as u8),
                     );
                     if !self.show_help && response.clicked() {
