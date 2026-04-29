@@ -10,6 +10,7 @@ active_deck = 0
 next_card = "Space"
 toggle_help = "H"
 toggle_deck_menu = "M"
+toggle_hide_ui = "F"
 next_deck = "Tab"
 toggle_debug = "D"
 open_settings = "S"
