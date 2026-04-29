@@ -9,12 +9,12 @@ use rand::prelude::IndexedRandom;
 use rand::rng;
 
 use crate::image_loader::{
-    decode_image_from_path, find_image_paths, fit_size, load_texture_from_decoded,
-    start_background_loader, DecodedCard,
+    DecodedCard, decode_image_from_path, find_image_paths, fit_size, load_texture_from_decoded,
+    start_background_loader,
 };
 use crate::settings::{
-    bindable_keys, default_app_settings, load_settings, AppSettings, KeyBindings, KeyDisplayExt,
-    SETTINGS_FILE_NAME,
+    AppSettings, KeyBindings, KeyDisplayExt, SETTINGS_FILE_NAME, bindable_keys,
+    default_app_settings, load_settings,
 };
 
 pub struct CardApp {
@@ -87,8 +87,11 @@ impl CardApp {
             .collect::<Vec<_>>();
 
         if !pending_paths.is_empty() {
-            self.background_receiver =
-                Some(start_background_loader(ctx, pending_paths, self.card_max_size()));
+            self.background_receiver = Some(start_background_loader(
+                ctx,
+                pending_paths,
+                self.card_max_size(),
+            ));
         }
     }
 
@@ -166,7 +169,9 @@ impl CardApp {
                         let texture = load_texture_from_decoded(ctx, decoded_card);
                         self.loaded_cards.insert(path.clone(), texture.clone());
 
-                        if self.current_path.as_ref() == Some(&path) && self.current_texture.is_none() {
+                        if self.current_path.as_ref() == Some(&path)
+                            && self.current_texture.is_none()
+                        {
                             self.current_texture = Some(texture);
                         }
                     }
@@ -218,7 +223,8 @@ impl CardApp {
         match decode_image_from_path(path, max_size) {
             Ok(decoded_card) => {
                 let texture = load_texture_from_decoded(ctx, decoded_card);
-                self.loaded_cards.insert(path.to_path_buf(), texture.clone());
+                self.loaded_cards
+                    .insert(path.to_path_buf(), texture.clone());
                 self.error_message = None;
                 Some(texture)
             }
@@ -252,6 +258,10 @@ impl CardApp {
         self.show_random_card();
     }
 
+    fn toggle_ui_chrome(&mut self) {
+        self.hide_ui_chrome = !self.hide_ui_chrome;
+    }
+
     fn save_settings(&mut self) -> Result<(), String> {
         let Some(base_dir) = self.settings_path.parent() else {
             return Err(format!(
@@ -263,8 +273,9 @@ impl CardApp {
         let settings_file = self.settings.to_file(base_dir);
         let settings_text = toml::to_string_pretty(&settings_file)
             .map_err(|error| format!("Failed to serialize settings: {error}"))?;
-        fs::write(&self.settings_path, settings_text)
-            .map_err(|error| format!("Failed to write {}: {error}", self.settings_path.display()))?;
+        fs::write(&self.settings_path, settings_text).map_err(|error| {
+            format!("Failed to write {}: {error}", self.settings_path.display())
+        })?;
 
         Ok(())
     }
@@ -315,7 +326,7 @@ impl CardApp {
             self.show_debug = !self.show_debug;
         }
         if ctx.input(|input| input.key_pressed(keybindings.toggle_full_screen)) {
-            self.hide_ui_chrome = !self.hide_ui_chrome;
+            self.toggle_ui_chrome();
         }
         if ctx.input(|input| input.key_pressed(keybindings.toggle_deck_menu)) {
             self.show_deck_menu = !self.show_deck_menu;
@@ -358,21 +369,33 @@ impl CardApp {
         }
     }
 
-    fn render_main_panel(&mut self, ctx: &egui::Context, ui: &mut egui::Ui, keybindings: &KeyBindings) {
+    fn render_main_panel(
+        &mut self,
+        ctx: &egui::Context,
+        ui: &mut egui::Ui,
+        keybindings: &KeyBindings,
+    ) {
         let display_texture = self.display_texture();
 
         if self.hide_ui_chrome {
-            self.render_card_only_ui(ui, &display_texture);
+            self.render_card_only_ui(ctx, ui, keybindings, &display_texture);
         } else {
             self.render_full_ui(ctx, ui, keybindings, &display_texture);
         }
     }
 
-    fn render_card_only_ui(&mut self, ui: &mut egui::Ui, display_texture: &Option<TextureHandle>) {
+    fn render_card_only_ui(
+        &mut self,
+        ctx: &egui::Context,
+        ui: &mut egui::Ui,
+        keybindings: &KeyBindings,
+        display_texture: &Option<TextureHandle>,
+    ) {
         ui.with_layout(
             egui::Layout::centered_and_justified(egui::Direction::TopDown),
             |ui| self.render_card_content(ui, display_texture, false),
         );
+        self.render_restore_chrome_button(ctx, keybindings);
     }
 
     fn render_full_ui(
@@ -446,7 +469,11 @@ impl CardApp {
         ));
         ui.label(format!(
             "Preload cards: {}",
-            if self.settings.preload_cards { "on" } else { "off" }
+            if self.settings.preload_cards {
+                "on"
+            } else {
+                "off"
+            }
         ));
         ui.label(format!(
             "{}: {} of {}",
@@ -477,7 +504,11 @@ impl CardApp {
         ));
 
         if let Some(path) = &self.current_path {
-            ui.label(path.file_name().and_then(|name| name.to_str()).unwrap_or(""));
+            ui.label(
+                path.file_name()
+                    .and_then(|name| name.to_str())
+                    .unwrap_or(""),
+            );
         }
     }
 
@@ -514,9 +545,14 @@ impl CardApp {
         }
     }
 
-    fn render_toolbar(&mut self, ctx: &egui::Context, ui: &mut egui::Ui, keybindings: &KeyBindings) {
+    fn render_toolbar(
+        &mut self,
+        ctx: &egui::Context,
+        ui: &mut egui::Ui,
+        keybindings: &KeyBindings,
+    ) {
         ui.add_space(12.0);
-        let toolbar_width = toolbar_preferred_width(7).min(ui.available_width());
+        let toolbar_width = toolbar_preferred_width(8).min(ui.available_width());
         ui.allocate_ui_with_layout(
             egui::vec2(toolbar_width, 0.0),
             egui::Layout::top_down(egui::Align::Center),
@@ -580,6 +616,16 @@ impl CardApp {
                             }
                             if control_button(
                                 ui,
+                                format!("Full Screen ({})", keybindings.toggle_full_screen.label()),
+                                self.hide_ui_chrome,
+                                FULL_SCREEN_BUTTON_TONE,
+                            )
+                            .clicked()
+                            {
+                                self.toggle_ui_chrome();
+                            }
+                            if control_button(
+                                ui,
                                 format!("Debug ({})", keybindings.toggle_debug.label()),
                                 self.show_debug,
                                 self.settings.ui_style.debug,
@@ -616,6 +662,31 @@ impl CardApp {
                     });
             },
         );
+    }
+
+    fn render_restore_chrome_button(&mut self, ctx: &egui::Context, keybindings: &KeyBindings) {
+        egui::Area::new(egui::Id::new("restore_ui_chrome_button"))
+            .anchor(egui::Align2::RIGHT_TOP, [-12.0, 12.0])
+            .order(egui::Order::Foreground)
+            .show(ctx, |ui| {
+                let label = format!("Show UI ({})", keybindings.toggle_full_screen.label());
+                let response = ui.add(
+                    egui::Button::new(
+                        egui::RichText::new(label)
+                            .small()
+                            .strong()
+                            .color(egui::Color32::from_white_alpha(210)),
+                    )
+                    .sense(mouse_click_sense())
+                    .fill(egui::Color32::from_black_alpha(78))
+                    .stroke(egui::Stroke::new(1.0, egui::Color32::from_white_alpha(44)))
+                    .corner_radius(12),
+                );
+
+                if response.clicked() {
+                    self.toggle_ui_chrome();
+                }
+            });
     }
 
     fn render_deck_menu(&mut self, ctx: &egui::Context) {
@@ -808,8 +879,10 @@ impl CardApp {
                                 self.settings.keybindings = draft;
                                 match self.save_settings() {
                                     Ok(()) => {
-                                        self.settings_message =
-                                            Some(format!("Saved to {}", self.settings_path.display()));
+                                        self.settings_message = Some(format!(
+                                            "Saved to {}",
+                                            self.settings_path.display()
+                                        ));
                                         self.error_message = None;
                                     }
                                     Err(error) => {
@@ -849,6 +922,7 @@ const TOOLBAR_INNER_MARGIN_X: f32 = 12.0;
 const TOOLBAR_INNER_MARGIN_Y: f32 = 10.0;
 const TOOLBAR_CORNER_RADIUS: u8 = 12;
 const TOOLBAR_STROKE_WIDTH: f32 = 1.0;
+const FULL_SCREEN_BUTTON_TONE: egui::Color32 = egui::Color32::from_rgb(62, 94, 112);
 
 fn mouse_click_sense() -> egui::Sense {
     egui::Sense::CLICK
@@ -863,7 +937,11 @@ fn control_button(
     let min_size = egui::vec2(CONTROL_BUTTON_MIN_WIDTH, CONTROL_BUTTON_MIN_HEIGHT);
 
     let label = label.into();
-    let fill = if active { tone } else { tone.gamma_multiply(0.45) };
+    let fill = if active {
+        tone
+    } else {
+        tone.gamma_multiply(0.45)
+    };
     let stroke = if active {
         egui::Stroke::new(1.5, tone.gamma_multiply(0.75))
     } else {
@@ -871,11 +949,15 @@ fn control_button(
     };
 
     ui.add(
-        egui::Button::new(egui::RichText::new(label).strong().color(egui::Color32::WHITE))
-            .sense(mouse_click_sense())
-            .min_size(min_size)
-            .fill(fill)
-            .stroke(stroke),
+        egui::Button::new(
+            egui::RichText::new(label)
+                .strong()
+                .color(egui::Color32::WHITE),
+        )
+        .sense(mouse_click_sense())
+        .min_size(min_size)
+        .fill(fill)
+        .stroke(stroke),
     )
 }
 
