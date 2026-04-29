@@ -325,7 +325,7 @@ impl CardApp {
         if ctx.input(|input| input.key_pressed(keybindings.toggle_debug)) {
             self.show_debug = !self.show_debug;
         }
-        if ctx.input(|input| input.key_pressed(keybindings.toggle_full_screen)) {
+        if ctx.input(|input| input.key_pressed(keybindings.toggle_hide_ui)) {
             self.toggle_ui_chrome();
         }
         if ctx.input(|input| input.key_pressed(keybindings.toggle_deck_menu)) {
@@ -427,7 +427,7 @@ impl CardApp {
             ui.add_space(8.0);
             ui.small(format!(
                 "Press {} to hide UI. Press {} to toggle debug details.",
-                keybindings.toggle_full_screen.label(),
+                keybindings.toggle_hide_ui.label(),
                 keybindings.toggle_debug.label()
             ));
         });
@@ -437,11 +437,11 @@ impl CardApp {
         ui.heading("Deck Shuffle Draw");
         ui.label(format!("Deck: {}", self.settings.current_deck().name));
         ui.label(format!(
-            "Press {} for next card, {} for help, {} for deck menu, {} for full screen, {} for settings, {} for next deck, {} to quit.",
+            "Press {} for next card, {} for help, {} for deck menu, {} to hide UI, {} for settings, {} for next deck, {} to quit.",
             keybindings.next_card.label(),
             keybindings.toggle_help.label(),
             keybindings.toggle_deck_menu.label(),
-            keybindings.toggle_full_screen.label(),
+            keybindings.toggle_hide_ui.label(),
             keybindings.open_settings.label(),
             keybindings.next_deck.label(),
             keybindings.quit.label(),
@@ -616,7 +616,7 @@ impl CardApp {
                             }
                             if control_button(
                                 ui,
-                                format!("Full Screen ({})", keybindings.toggle_full_screen.label()),
+                                format!("Hide UI ({})", keybindings.toggle_hide_ui.label()),
                                 self.hide_ui_chrome,
                                 FULL_SCREEN_BUTTON_TONE,
                             )
@@ -669,7 +669,7 @@ impl CardApp {
             .anchor(egui::Align2::RIGHT_TOP, [-12.0, 12.0])
             .order(egui::Order::Foreground)
             .show(ctx, |ui| {
-                let label = format!("Show UI ({})", keybindings.toggle_full_screen.label());
+                let label = format!("Show UI ({})", keybindings.toggle_hide_ui.label());
                 let response = ui.add(
                     egui::Button::new(
                         egui::RichText::new(label)
@@ -763,7 +763,7 @@ impl CardApp {
                     &[
                         snapshot.toggle_help,
                         snapshot.toggle_deck_menu,
-                        snapshot.toggle_full_screen,
+                        snapshot.toggle_hide_ui,
                         snapshot.next_deck,
                         snapshot.toggle_debug,
                         snapshot.open_settings,
@@ -777,7 +777,7 @@ impl CardApp {
                     &[
                         snapshot.next_card,
                         snapshot.toggle_deck_menu,
-                        snapshot.toggle_full_screen,
+                        snapshot.toggle_hide_ui,
                         snapshot.next_deck,
                         snapshot.toggle_debug,
                         snapshot.open_settings,
@@ -791,7 +791,7 @@ impl CardApp {
                     &[
                         snapshot.next_card,
                         snapshot.toggle_help,
-                        snapshot.toggle_full_screen,
+                        snapshot.toggle_hide_ui,
                         snapshot.next_deck,
                         snapshot.toggle_debug,
                         snapshot.open_settings,
@@ -800,8 +800,8 @@ impl CardApp {
                 );
                 key_binding_row(
                     ui,
-                    "Full Screen",
-                    &mut draft.toggle_full_screen,
+                    "Hide UI",
+                    &mut draft.toggle_hide_ui,
                     &[
                         snapshot.next_card,
                         snapshot.toggle_help,
@@ -820,7 +820,7 @@ impl CardApp {
                         snapshot.next_card,
                         snapshot.toggle_help,
                         snapshot.toggle_deck_menu,
-                        snapshot.toggle_full_screen,
+                        snapshot.toggle_hide_ui,
                         snapshot.toggle_debug,
                         snapshot.open_settings,
                         snapshot.quit,
@@ -834,7 +834,7 @@ impl CardApp {
                         snapshot.next_card,
                         snapshot.toggle_help,
                         snapshot.toggle_deck_menu,
-                        snapshot.toggle_full_screen,
+                        snapshot.toggle_hide_ui,
                         snapshot.next_deck,
                         snapshot.open_settings,
                         snapshot.quit,
@@ -848,7 +848,7 @@ impl CardApp {
                         snapshot.next_card,
                         snapshot.toggle_help,
                         snapshot.toggle_deck_menu,
-                        snapshot.toggle_full_screen,
+                        snapshot.toggle_hide_ui,
                         snapshot.next_deck,
                         snapshot.toggle_debug,
                         snapshot.quit,
@@ -862,7 +862,7 @@ impl CardApp {
                         snapshot.next_card,
                         snapshot.toggle_help,
                         snapshot.toggle_deck_menu,
-                        snapshot.toggle_full_screen,
+                        snapshot.toggle_hide_ui,
                         snapshot.next_deck,
                         snapshot.toggle_debug,
                         snapshot.open_settings,

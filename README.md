@@ -10,12 +10,14 @@ Small Rust desktop app for drawing a random card from a configured deck.
 - click the card image: show the next card
 - `H`: show or hide the help image for the current deck
 - `M`: open the deck picker
+- `F`: hide or show the app UI chrome for a cleaner card view
 - `Tab`: switch to the next deck
 - `D`: show or hide debug details
 - `S`: open or close the settings window
 - `Q`: quit
 
 The app also shows on-screen buttons for these actions below the card image.
+When the UI chrome is hidden, a subtle `Show UI` button appears in the top-right corner so you can bring the controls back without using the keyboard.
 
 ## Asset Layout
 
@@ -90,4 +92,5 @@ cargo run
 - The app keeps cached textures in memory while running.
 - Changing decks updates `active_deck` in `settings.toml`, so the app reopens on the last selected deck.
 - The settings window edits keybindings as a draft and only applies them when you save.
+- The hide UI control only hides the app UI chrome; it does not change the operating system window mode.
 - The tracked default config points at the demo deck so the app can run without private assets.

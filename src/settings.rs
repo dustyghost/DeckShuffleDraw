@@ -56,7 +56,7 @@ pub struct KeyBindings {
     pub next_card: Key,
     pub toggle_help: Key,
     pub toggle_deck_menu: Key,
-    pub toggle_full_screen: Key,
+    pub toggle_hide_ui: Key,
     pub next_deck: Key,
     pub toggle_debug: Key,
     pub open_settings: Key,
@@ -68,8 +68,8 @@ pub struct KeyBindingsFile {
     next_card: String,
     toggle_help: String,
     toggle_deck_menu: String,
-    #[serde(default = "default_toggle_full_screen_key")]
-    toggle_full_screen: String,
+    #[serde(default = "default_toggle_hide_ui_key", alias = "toggle_full_screen")]
+    toggle_hide_ui: String,
     next_deck: String,
     toggle_debug: String,
     open_settings: String,
@@ -119,7 +119,10 @@ impl AppSettings {
         }
 
         let decks = build_decks(&raw, base_dir)?;
-        let active_deck = raw.active_deck.unwrap_or(0).min(decks.len().saturating_sub(1));
+        let active_deck = raw
+            .active_deck
+            .unwrap_or(0)
+            .min(decks.len().saturating_sub(1));
         let keybindings = KeyBindings::from_file(raw.keybindings.unwrap_or_default())?;
         keybindings.validate_unique()?;
         let ui_style = UiStyle::from_file(raw.ui_style.unwrap_or_default())?;
@@ -147,7 +150,10 @@ impl AppSettings {
                     .map(|deck| DeckConfigFile {
                         name: Some(deck.name.clone()),
                         image_dir: relative_to(base_dir, &deck.image_dir),
-                        help_image: deck.help_image.as_ref().map(|path| relative_to(base_dir, path)),
+                        help_image: deck
+                            .help_image
+                            .as_ref()
+                            .map(|path| relative_to(base_dir, path)),
                     })
                     .collect(),
             ),
@@ -178,7 +184,7 @@ impl Default for KeyBindingsFile {
             next_card: "Space".to_string(),
             toggle_help: "H".to_string(),
             toggle_deck_menu: "M".to_string(),
-            toggle_full_screen: "F".to_string(),
+            toggle_hide_ui: "F".to_string(),
             next_deck: "Tab".to_string(),
             toggle_debug: "D".to_string(),
             open_settings: "S".to_string(),
@@ -187,7 +193,7 @@ impl Default for KeyBindingsFile {
     }
 }
 
-fn default_toggle_full_screen_key() -> String {
+fn default_toggle_hide_ui_key() -> String {
     "F".to_string()
 }
 
@@ -213,7 +219,7 @@ impl KeyBindings {
             next_card: parse_key(&raw.next_card)?,
             toggle_help: parse_key(&raw.toggle_help)?,
             toggle_deck_menu: parse_key(&raw.toggle_deck_menu)?,
-            toggle_full_screen: parse_key(&raw.toggle_full_screen)?,
+            toggle_hide_ui: parse_key(&raw.toggle_hide_ui)?,
             next_deck: parse_key(&raw.next_deck)?,
             toggle_debug: parse_key(&raw.toggle_debug)?,
             open_settings: parse_key(&raw.open_settings)?,
@@ -226,7 +232,7 @@ impl KeyBindings {
             next_card: self.next_card.label().to_string(),
             toggle_help: self.toggle_help.label().to_string(),
             toggle_deck_menu: self.toggle_deck_menu.label().to_string(),
-            toggle_full_screen: self.toggle_full_screen.label().to_string(),
+            toggle_hide_ui: self.toggle_hide_ui.label().to_string(),
             next_deck: self.next_deck.label().to_string(),
             toggle_debug: self.toggle_debug.label().to_string(),
             open_settings: self.open_settings.label().to_string(),
@@ -239,7 +245,7 @@ impl KeyBindings {
             ("next_card", self.next_card),
             ("toggle_help", self.toggle_help),
             ("toggle_deck_menu", self.toggle_deck_menu),
-            ("toggle_full_screen", self.toggle_full_screen),
+            ("toggle_hide_ui", self.toggle_hide_ui),
             ("next_deck", self.next_deck),
             ("toggle_debug", self.toggle_debug),
             ("open_settings", self.open_settings),
@@ -371,9 +377,13 @@ where
 
         let default_settings_path = root.join(DEFAULT_SETTINGS_FILE_NAME);
         if default_settings_path.is_file() {
-            let default_settings_text = fs::read_to_string(&default_settings_path).map_err(|error| {
-                format!("Failed to read {}: {error}", default_settings_path.display())
-            })?;
+            let default_settings_text =
+                fs::read_to_string(&default_settings_path).map_err(|error| {
+                    format!(
+                        "Failed to read {}: {error}",
+                        default_settings_path.display()
+                    )
+                })?;
             fs::write(&settings_path, &default_settings_text).map_err(|error| {
                 format!(
                     "Failed to create {} from {}: {error}",
@@ -422,7 +432,10 @@ pub fn bindable_keys() -> &'static [Key] {
     ]
 }
 
-fn read_settings_file(settings_path: &Path, base_dir: &Path) -> Result<(AppSettings, PathBuf), String> {
+fn read_settings_file(
+    settings_path: &Path,
+    base_dir: &Path,
+) -> Result<(AppSettings, PathBuf), String> {
     let settings_text = fs::read_to_string(settings_path)
         .map_err(|error| format!("Failed to read {}: {error}", settings_path.display()))?;
     let raw: AppSettingsFile = toml::from_str(&settings_text)
@@ -550,7 +563,7 @@ mod tests {
             next_card: Key::Space,
             toggle_help: Key::H,
             toggle_deck_menu: Key::M,
-            toggle_full_screen: Key::F,
+            toggle_hide_ui: Key::F,
             next_deck: Key::Tab,
             toggle_debug: Key::D,
             open_settings: Key::Space,
@@ -644,7 +657,7 @@ mod tests {
     }
 
     #[test]
-    fn missing_toggle_full_screen_defaults_to_f() {
+    fn missing_toggle_hide_ui_defaults_to_f() {
         let raw: KeyBindingsFile = toml::from_str(
             r#"
 next_card = "Space"
@@ -660,7 +673,28 @@ quit = "Q"
 
         let bindings = KeyBindings::from_file(raw).expect("legacy keybindings should parse");
 
-        assert_eq!(bindings.toggle_full_screen, Key::F);
+        assert_eq!(bindings.toggle_hide_ui, Key::F);
+    }
+
+    #[test]
+    fn legacy_toggle_full_screen_key_is_supported() {
+        let raw: KeyBindingsFile = toml::from_str(
+            r#"
+next_card = "Space"
+toggle_help = "H"
+toggle_deck_menu = "M"
+toggle_full_screen = "F"
+next_deck = "Tab"
+toggle_debug = "D"
+open_settings = "S"
+quit = "Q"
+"#,
+        )
+        .expect("legacy keybindings should deserialize");
+
+        let bindings = KeyBindings::from_file(raw).expect("legacy keybindings should parse");
+
+        assert_eq!(bindings.toggle_hide_ui, Key::F);
     }
 
     #[test]
@@ -707,9 +741,10 @@ help_image = "demo-assets/help/demo-deck-help.png"
             root.join("demo-assets/decks/demo-deck")
         );
 
-        let copied_settings = fs::read_to_string(&settings_path).expect("settings should be copied");
-        let default_settings =
-            fs::read_to_string(&default_settings_path).expect("default settings should be readable");
+        let copied_settings =
+            fs::read_to_string(&settings_path).expect("settings should be copied");
+        let default_settings = fs::read_to_string(&default_settings_path)
+            .expect("default settings should be readable");
         assert_eq!(copied_settings, default_settings);
     }
 }
